@@ -66,20 +66,15 @@ func (q *Queries) CreateFeedFollow(ctx context.Context, arg CreateFeedFollowPara
 }
 
 const getFeedFollowsForUser = `-- name: GetFeedFollowsForUser :many
-WITH queried_user AS (
-  SELECT id, name, created_at, updated_at  FROM users WHERE users.name = $1
-)
-SELECT 
-  qu.name AS user_name, 
+select 
   feeds.name AS feed_name, 
   feed_follows.id, feed_follows.user_id, feed_follows.feed_id, feed_follows.created_at, feed_follows.updated_at
-FROM feed_follows 
-INNER JOIN queried_user qu ON feed_follows.user_id = qu.id 
-INNER JOIN feeds ON feed_follows.feed_id = feeds.id
+from feed_follows
+inner join feeds on feed_follows.feed_id = feeds.id
+where feed_follows.user_id = $1
 `
 
 type GetFeedFollowsForUserRow struct {
-	UserName  string
 	FeedName  string
 	ID        uuid.UUID
 	UserID    uuid.UUID
@@ -88,8 +83,8 @@ type GetFeedFollowsForUserRow struct {
 	UpdatedAt time.Time
 }
 
-func (q *Queries) GetFeedFollowsForUser(ctx context.Context, name string) ([]GetFeedFollowsForUserRow, error) {
-	rows, err := q.db.QueryContext(ctx, getFeedFollowsForUser, name)
+func (q *Queries) GetFeedFollowsForUser(ctx context.Context, userID uuid.UUID) ([]GetFeedFollowsForUserRow, error) {
+	rows, err := q.db.QueryContext(ctx, getFeedFollowsForUser, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -98,7 +93,6 @@ func (q *Queries) GetFeedFollowsForUser(ctx context.Context, name string) ([]Get
 	for rows.Next() {
 		var i GetFeedFollowsForUserRow
 		if err := rows.Scan(
-			&i.UserName,
 			&i.FeedName,
 			&i.ID,
 			&i.UserID,

@@ -47,8 +47,8 @@ func main() {
 	registeredCmds.register("agg", agg)
 	registeredCmds.register("addfeed", addfeed )
 	registeredCmds.register("feeds", handlerFeeds)
-	registeredCmds.register("follow", handlerFollow)
-	registeredCmds.register("following", handlerFollowing)
+	registeredCmds.register("follow", follow)
+	registeredCmds.register("following", following)
 
 	db, err := sql.Open("postgres", st.config.DbUrl)
 	if err != nil {
@@ -209,7 +209,7 @@ func handlerFeeds(c *state, cmd command) error {
 	return nil 
 }
 
-func handlerFollow(s *state, cmd command) error {
+func follow(s *state, cmd command) error {
 	if len(cmd.args) != 1 {
 		return errors.New("Invalid arguement number")
 	}
@@ -240,13 +240,17 @@ func handlerFollow(s *state, cmd command) error {
 	return nil 
 }
 
-func handlerFollowing(s *state, cmd command) error {
+func following(s *state, cmd command) error {
 	if len(cmd.args) != 0 {
 		return errors.New("Unknown number of arguements")
 	}
+	user, err := s.db.GetUser(context.Background(), s.config.CurrentUserName)
+	if err != nil {
+		return err 
+	}
 	userFeedFollows, err := s.db.GetFeedFollowsForUser(
 		context.Background(),
-		s.config.CurrentUserName,
+		user.ID,
 	)
 	if err != nil {
 		return err 

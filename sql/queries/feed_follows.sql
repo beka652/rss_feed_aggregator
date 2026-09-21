@@ -13,15 +13,12 @@ inner join users on inserted_feed_follow.user_id = users.id
 ;
 
 -- name: GetFeedFollowsForUser :many
-WITH queried_user AS (
-  SELECT *  FROM users WHERE users.name = $1
-)
-SELECT 
-  qu.name AS user_name, 
+select 
   feeds.name AS feed_name, 
   feed_follows.*
-FROM feed_follows 
-INNER JOIN queried_user qu ON feed_follows.user_id = qu.id 
-INNER JOIN feeds ON feed_follows.feed_id = feeds.id;
+from feed_follows
+inner join feeds on feed_follows.feed_id = feeds.id
+where feed_follows.user_id = $1;
+
 
   
