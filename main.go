@@ -101,6 +101,7 @@ func handlerRegister(s *state, cmd command) error {
 		return err
 	}
 	s.config.CurrentUserName = user.Name
+	s.config.SetUser()
 	
 	fmt.Println()
 	fmt.Println(user)
