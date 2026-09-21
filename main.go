@@ -44,11 +44,11 @@ func main() {
 	registeredCmds.register("register", handlerRegister)
 	registeredCmds.register("reset", handlerReset)
 	registeredCmds.register("users", handlerUsers)
-	registeredCmds.register("agg", agg)
-	registeredCmds.register("addfeed", addfeed )
+	registeredCmds.register("agg", handlerAgg)
+	registeredCmds.register("addfeed",middlewareLoggedIn(handlerAddFeed) )
 	registeredCmds.register("feeds", handlerFeeds)
-	registeredCmds.register("follow", follow)
-	registeredCmds.register("following", following)
+	registeredCmds.register("follow", middlewareLoggedIn(handlerFollow))
+	registeredCmds.register("following", middlewareLoggedIn(handlerFollowing))
 
 	db, err := sql.Open("postgres", st.config.DbUrl)
 	if err != nil {
@@ -150,7 +150,7 @@ func handlerUsers(s *state, _ command) error {
 	return nil 
 }
 
-func agg(s *state, cmd command) error {
+func handlerAgg(s *state, cmd command) error {
 	url := "https://www.wagslane.dev/index.xml"
 	rssFeed, err := fetchFeed(context.Background(), url)
 	if err != nil {
@@ -160,19 +160,15 @@ func agg(s *state, cmd command) error {
 	return nil 
 }
 
-func addfeed(s *state, cmd command) error {
+func handlerAddFeed(s *state, cmd command, user database.User) error {
 	if len(cmd.args) != 2 {
 		return errors.New("Invalid argument number.")
-	}
-	currUser, err := s.db.GetUser(context.Background(), s.config.CurrentUserName)
-	if err != nil {
-		return err 
 	}
 	feed, err := s.db.CreateFeed(
 		context.Background(),
 		database.CreateFeedParams{
 			ID: uuid.New(),
-			UserID: currUser.ID,
+			UserID: user.ID,
 			Name: cmd.args[0],
 			Url: cmd.args[1],
 			CreatedAt: time.Now(),
@@ -209,7 +205,7 @@ func handlerFeeds(c *state, cmd command) error {
 	return nil 
 }
 
-func follow(s *state, cmd command) error {
+func handlerFollow(s *state, cmd command, user database.User) error {
 	if len(cmd.args) != 1 {
 		return errors.New("Invalid arguement number")
 	}
@@ -217,15 +213,11 @@ func follow(s *state, cmd command) error {
 	if err != nil {
 		return err 
 	}
-	currUser, err := s.db.GetUser(context.Background(), s.config.CurrentUserName)
-	if err != nil {
-		return err 
-	}
 	_ , err = s.db.CreateFeedFollow(
 		context.Background(),
 		database.CreateFeedFollowParams{
 			ID: uuid.New(),
-			UserID: currUser.ID,
+			UserID: user.ID,
 			FeedID: feed.ID,
 			CreatedAt: time.Now(),
 			UpdatedAt: time.Now(),
@@ -234,20 +226,17 @@ func follow(s *state, cmd command) error {
 	if err != nil {
 		return err 
 	}
-	fmt.Printf("%v successfully started following %v\n", currUser.Name, feed.Name)
+	fmt.Printf("%v successfully started following %v\n", user.Name, feed.Name)
 	
 
 	return nil 
 }
 
-func following(s *state, cmd command) error {
+func handlerFollowing(s *state, cmd command, user database.User) error {
 	if len(cmd.args) != 0 {
 		return errors.New("Unknown number of arguements")
 	}
-	user, err := s.db.GetUser(context.Background(), s.config.CurrentUserName)
-	if err != nil {
-		return err 
-	}
+	
 	userFeedFollows, err := s.db.GetFeedFollowsForUser(
 		context.Background(),
 		user.ID,
@@ -338,5 +327,18 @@ func sanitizeRSSFeed(feed *RSSFeed) {
 		feed.Channel.Item[i].Description = html.UnescapeString(feed.Channel.Item[i].Description)
 	}
 }
-
-// Helpers 
+// Middle ware 
+func middlewareLoggedIn( handler func(s *state, cmd command, user database.User) error,
+	) func (*state, command) error {
+	return func(s *state, cmd command) error {
+		user, err  := s.db.GetUser(context.Background(),s.config.CurrentUserName)
+		if err != nil {
+			return err 
+		}
+		err = handler(s, cmd, user)
+		if err != nil {
+			return err 
+		}
+		return err 
+	}
+}
