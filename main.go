@@ -1,15 +1,21 @@
 package main
 
 import (
+	"context"
+	"database/sql"
 	"errors"
 	"fmt"
 	"os"
-
+	"time"
+	"github.com/google/uuid"
 	"github.com/beka652/rss_feed_aggregator/internal/config"
+	"github.com/beka652/rss_feed_aggregator/internal/database"
+	_ "github.com/lib/pq"
 )
 
 type state struct {
 	config *config.Config
+	db *database.Queries
 }
 
 type command struct {
@@ -30,7 +36,17 @@ func main() {
 	st := state {config: cnf}
 	registeredCmds := commands{ cmds: map[string]func(*state, command) error{}}
 	registeredCmds.register("login", handlerLogin)
+	registeredCmds.register("register", handlerRegister)
 
+	db, err := sql.Open("postgres", st.config.DbUrl)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	dbQueries := database.New(db)
+	st.db = dbQueries
+	
+	
 	args := os.Args
 	if len(args)  < 2 {
 		fmt.Fprintln(os.Stderr, "Error: Not enough arguments provided.")
@@ -55,10 +71,43 @@ func handlerLogin(s *state, cmd command) error {
 	if len(cmd.args) == 0 {
 		return errors.New("Error: Username required.")
 	}
-	s.config.CurrentUserName = cmd.args[0]
+	user, err := s.db.GetUser(
+		context.Background(),
+		cmd.args[0],
+	)
+	if err != nil {
+		return err
+	}
+	s.config.CurrentUserName = user.Name
 	s.config.SetUser()
-	fmt.Printf("User set to %v\n", cmd.args[0])
+	fmt.Printf("User set to %v\n", user.Name)
 	return nil 
+}
+
+func handlerRegister(s *state, cmd command) error {
+	if len(cmd.args) == 0 {
+		return errors.New("Error: Username required")
+	}
+	user, err := s.db.CreateUser(
+		context.Background(),
+		database.CreateUserParams{
+			ID: uuid.New(),
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+			Name: cmd.args[0],
+		},
+	)
+	if err != nil {
+		return err
+	}
+	s.config.CurrentUserName = user.Name
+	
+	fmt.Println()
+	fmt.Println(user)
+	fmt.Println("User created successfully!")
+	fmt.Println()
+
+	return  nil 
 }
 
 /*
