@@ -49,6 +49,7 @@ func main() {
 	registeredCmds.register("feeds", handlerFeeds)
 	registeredCmds.register("follow", middlewareLoggedIn(handlerFollow))
 	registeredCmds.register("following", middlewareLoggedIn(handlerFollowing))
+	registeredCmds.register("unfollow", middlewareLoggedIn(handlerUnfollow))
 
 	db, err := sql.Open("postgres", st.config.DbUrl)
 	if err != nil {
@@ -229,6 +230,24 @@ func handlerFollow(s *state, cmd command, user database.User) error {
 	fmt.Printf("%v successfully started following %v\n", user.Name, feed.Name)
 	
 
+	return nil 
+}
+
+func handlerUnfollow(s *state, cmd command, user database.User) error {
+	if len(cmd.args) != 1 {
+		return errors.New("Invalid number of arguments")
+	}
+	err := s.db.DeleteFeedFollowByUrl(
+		context.Background(),
+		database.DeleteFeedFollowByUrlParams{
+			UserID: user.ID,
+			Url: cmd.args[0],
+		},
+	)
+	if err != nil {
+		return err 
+	}
+	fmt.Println(user.Name, "unfollowed", cmd.args[0], "successfully!")
 	return nil 
 }
 
