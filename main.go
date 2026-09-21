@@ -47,6 +47,8 @@ func main() {
 	registeredCmds.register("agg", agg)
 	registeredCmds.register("addfeed", addfeed )
 	registeredCmds.register("feeds", handlerFeeds)
+	registeredCmds.register("follow", handlerFollow)
+	registeredCmds.register("following", handlerFollowing)
 
 	db, err := sql.Open("postgres", st.config.DbUrl)
 	if err != nil {
@@ -177,11 +179,21 @@ func addfeed(s *state, cmd command) error {
 			UpdatedAt: time.Now(),
 		},
 	)
+	_, err = s.db.CreateFeedFollow(
+		context.Background(),
+		database.CreateFeedFollowParams{
+			ID: uuid.New(),
+			UserID: feed.UserID,
+			FeedID: feed.ID,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+	)
 	if err != nil {
 		return err 
 	}
 	fmt.Println(feed)
-	fmt.Println("Feed added successfully!")
+	fmt.Println("Feed added and subscribed  successfully!")
 
 	return nil 
 }
@@ -193,6 +205,55 @@ func handlerFeeds(c *state, cmd command) error {
 	}
 	for _, feed := range feeds {
 		fmt.Printf(" * feed: %v, url: %v, username: %v\n", feed.FeedName, feed.Url, feed.UserName )
+	}
+	return nil 
+}
+
+func handlerFollow(s *state, cmd command) error {
+	if len(cmd.args) != 1 {
+		return errors.New("Invalid arguement number")
+	}
+	feed, err := s.db.GetFeedByUrl(context.Background(), cmd.args[0])
+	if err != nil {
+		return err 
+	}
+	currUser, err := s.db.GetUser(context.Background(), s.config.CurrentUserName)
+	if err != nil {
+		return err 
+	}
+	_ , err = s.db.CreateFeedFollow(
+		context.Background(),
+		database.CreateFeedFollowParams{
+			ID: uuid.New(),
+			UserID: currUser.ID,
+			FeedID: feed.ID,
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+	)
+	if err != nil {
+		return err 
+	}
+	fmt.Printf("%v successfully started following %v\n", currUser.Name, feed.Name)
+	
+
+	return nil 
+}
+
+func handlerFollowing(s *state, cmd command) error {
+	if len(cmd.args) != 0 {
+		return errors.New("Unknown number of arguements")
+	}
+	userFeedFollows, err := s.db.GetFeedFollowsForUser(
+		context.Background(),
+		s.config.CurrentUserName,
+	)
+	if err != nil {
+		return err 
+	}
+	fmt.Printf("* Feeds followed by %v:\n", s.config.CurrentUserName)
+	for i , feed := range userFeedFollows {
+		fmt.Printf("%v: %v\n", i +1, feed.FeedName)
 	}
 	return nil 
 }
