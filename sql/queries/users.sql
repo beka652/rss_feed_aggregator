@@ -10,3 +10,5 @@ returning *;
 
 -- name: GetUser :one
 select * from users where name = $1 limit 1;
+-- name: ResetDB :exec 
+delete from users;

@@ -37,6 +37,7 @@ func main() {
 	registeredCmds := commands{ cmds: map[string]func(*state, command) error{}}
 	registeredCmds.register("login", handlerLogin)
 	registeredCmds.register("register", handlerRegister)
+	registeredCmds.register("reset", handlerReset)
 
 	db, err := sql.Open("postgres", st.config.DbUrl)
 	if err != nil {
@@ -109,6 +110,15 @@ func handlerRegister(s *state, cmd command) error {
 	fmt.Println()
 
 	return  nil 
+}
+
+func handlerReset(s *state, _ command) error {
+	err := s.db.ResetDB(context.Background())
+	if err != nil {
+		return err 
+	}
+	fmt.Println("Database reset successfully")
+	return nil 
 }
 
 /*
