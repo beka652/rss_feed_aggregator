@@ -38,6 +38,7 @@ func main() {
 	registeredCmds.register("login", handlerLogin)
 	registeredCmds.register("register", handlerRegister)
 	registeredCmds.register("reset", handlerReset)
+	registeredCmds.register("users", handlerUsers)
 
 	db, err := sql.Open("postgres", st.config.DbUrl)
 	if err != nil {
@@ -117,7 +118,25 @@ func handlerReset(s *state, _ command) error {
 	if err != nil {
 		return err 
 	}
+	s.config.CurrentUserName = ""
+	s.config.SetUser()
 	fmt.Println("Database reset successfully")
+	return nil 
+}
+
+func handlerUsers(s *state, _ command) error {
+	users, err := s.db.GetUsers(context.Background())
+	if err != nil {
+		return err
+	}
+	currUser := s.config.CurrentUserName
+	for _, user := range users {
+		if currUser == user.Name {
+			fmt.Printf(" * %v (current)\n",user.Name)
+		} else {
+			fmt.Printf(" * %v \n",user.Name)
+		}
+	}
 	return nil 
 }
 
