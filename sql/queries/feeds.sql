@@ -8,4 +8,10 @@ $4,
 $5, 
 $6 ) returning *;
 
-  
+-- name: GetFeeds :many
+select 
+  feeds.name as feed_name,
+  feeds.url as url,
+  users.name as user_name
+from feeds 
+inner join users on feeds.user_id = users.id;

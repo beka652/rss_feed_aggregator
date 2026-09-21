@@ -46,6 +46,7 @@ func main() {
 	registeredCmds.register("users", handlerUsers)
 	registeredCmds.register("agg", agg)
 	registeredCmds.register("addfeed", addfeed )
+	registeredCmds.register("feeds", handlerFeeds)
 
 	db, err := sql.Open("postgres", st.config.DbUrl)
 	if err != nil {
@@ -182,6 +183,17 @@ func addfeed(s *state, cmd command) error {
 	fmt.Println(feed)
 	fmt.Println("Feed added successfully!")
 
+	return nil 
+}
+
+func handlerFeeds(c *state, cmd command) error {
+	feeds, err := c.db.GetFeeds(context.Background())
+	if err != nil {
+		return err 
+	}
+	for _, feed := range feeds {
+		fmt.Printf(" * feed: %v, url: %v, username: %v\n", feed.FeedName, feed.Url, feed.UserName )
+	}
 	return nil 
 }
 
