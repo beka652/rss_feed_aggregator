@@ -3,13 +3,18 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/xml"
 	"errors"
 	"fmt"
+	"html"
+	"io"
+	"net/http"
 	"os"
 	"time"
-	"github.com/google/uuid"
+
 	"github.com/beka652/rss_feed_aggregator/internal/config"
 	"github.com/beka652/rss_feed_aggregator/internal/database"
+	"github.com/google/uuid"
 	_ "github.com/lib/pq"
 )
 
@@ -39,6 +44,7 @@ func main() {
 	registeredCmds.register("register", handlerRegister)
 	registeredCmds.register("reset", handlerReset)
 	registeredCmds.register("users", handlerUsers)
+	registeredCmds.register("agg", agg)
 
 	db, err := sql.Open("postgres", st.config.DbUrl)
 	if err != nil {
@@ -140,6 +146,16 @@ func handlerUsers(s *state, _ command) error {
 	return nil 
 }
 
+func agg(s *state, cmd command) error {
+	url := "https://www.wagslane.dev/index.xml"
+	rssFeed, err := fetchFeed(context.Background(), url)
+	if err != nil {
+		return err
+	}
+	fmt.Println(*rssFeed)
+	return nil 
+}
+
 /*
 	Commands' struct methods  
 */
@@ -158,6 +174,63 @@ func (c *commands) run(s *state, cmd command) error {
 		return err
 	}
 	return nil 
+}
+
+type RSSFeed struct {
+	Channel struct {
+		Title       string    `xml:"title"`
+		Link        string    `xml:"link"`
+		Description string    `xml:"description"`
+		Item        []RSSItem `xml:"item"`
+	} `xml:"channel"`
+}
+
+type RSSItem struct {
+	Title       string `xml:"title"`
+	Link        string `xml:"link"`
+	Description string `xml:"description"`
+	PubDate     string `xml:"pubDate"`
+}
+
+func fetchFeed(ctx context.Context, feedUrl string) (*RSSFeed, error) {
+	var rssFeed RSSFeed
+	req, err := http.NewRequestWithContext(
+		ctx,
+		http.MethodGet, 
+		feedUrl,
+		nil,
+	)
+	if err != nil {
+		return &rssFeed, err 
+	}
+	req.Header.Set("user-agent", "gator")
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return &rssFeed, err 
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return &rssFeed, err 
+	}
+	err = xml.Unmarshal(body, &rssFeed)
+	if err != nil {
+		return &rssFeed, err
+	}
+	sanitizeRSSFeed(&rssFeed)
+	return &rssFeed, nil 
+}
+
+func sanitizeRSSFeed(feed *RSSFeed) {
+	feed.Channel.Title = html.UnescapeString(feed.Channel.Title)
+	feed.Channel.Description = html.UnescapeString(feed.Channel.Description)
+	for i := 0; i < len(feed.Channel.Item); i ++ {
+		feed.Channel.Item[i].Title = html.UnescapeString(feed.Channel.Item[i].Title)
+		feed.Channel.Item[i].Description = html.UnescapeString(feed.Channel.Item[i].Description)
+	}
 }
 
 // Helpers 
