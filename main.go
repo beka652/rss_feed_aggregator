@@ -45,6 +45,7 @@ func main() {
 	registeredCmds.register("reset", handlerReset)
 	registeredCmds.register("users", handlerUsers)
 	registeredCmds.register("agg", agg)
+	registeredCmds.register("addfeed", addfeed )
 
 	db, err := sql.Open("postgres", st.config.DbUrl)
 	if err != nil {
@@ -153,6 +154,34 @@ func agg(s *state, cmd command) error {
 		return err
 	}
 	fmt.Println(*rssFeed)
+	return nil 
+}
+
+func addfeed(s *state, cmd command) error {
+	if len(cmd.args) != 2 {
+		return errors.New("Invalid argument number.")
+	}
+	currUser, err := s.db.GetUser(context.Background(), s.config.CurrentUserName)
+	if err != nil {
+		return err 
+	}
+	feed, err := s.db.CreateFeed(
+		context.Background(),
+		database.CreateFeedParams{
+			ID: uuid.New(),
+			UserID: currUser.ID,
+			Name: cmd.args[0],
+			Url: cmd.args[1],
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		},
+	)
+	if err != nil {
+		return err 
+	}
+	fmt.Println(feed)
+	fmt.Println("Feed added successfully!")
+
 	return nil 
 }
 
