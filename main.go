@@ -44,7 +44,7 @@ func main() {
 	registeredCmds.register("register", handlerRegister)
 	registeredCmds.register("reset", handlerReset)
 	registeredCmds.register("users", handlerUsers)
-	registeredCmds.register("agg", middlewareLoggedIn(handlerAgg))
+	registeredCmds.register("agg", handlerAgg)
 	registeredCmds.register("addfeed",middlewareLoggedIn(handlerAddFeed) )
 	registeredCmds.register("feeds", handlerFeeds)
 	registeredCmds.register("follow", middlewareLoggedIn(handlerFollow))
@@ -151,13 +151,13 @@ func handlerUsers(s *state, _ command) error {
 	return nil 
 }
 
-func handlerAgg(s *state, cmd command, user database.User) error {
+func handlerAgg(s *state, cmd command) error {
 	dur  := time.Second * 10
 	fmt.Println("collecting feeds every", dur)
 
 	ticker := time.NewTicker(dur)
 	for ; ; <-ticker.C {
-		err := scrapeFeeds(s, user)
+		err := scrapeFeeds(s)
 		if err != nil {
 			return err 
 		}
@@ -274,8 +274,8 @@ func handlerFollowing(s *state, cmd command, user database.User) error {
 	return nil 
 }
 
-func scrapeFeeds(s *state, user database.User) error {
-	nextFeed, err  := s.db.GetNextFeedToFetch(context.Background(), user.ID)
+func scrapeFeeds(s *state) error {
+	nextFeed, err  := s.db.GetNextFeedToFetch(context.Background())
 	if err != nil {
 		return err 
 	}
@@ -297,9 +297,11 @@ func scrapeFeeds(s *state, user database.User) error {
 	if err != nil {
 		return err 
 	}
+	fmt.Println()
 	for _, item := range feed.Channel.Item {
-			fmt.Println(item.Title)
+			fmt.Println(" --> ", item.Title)
 	}
+	fmt.Println()
 	return nil 
 }
 

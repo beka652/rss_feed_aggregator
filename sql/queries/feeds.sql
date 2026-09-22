@@ -26,10 +26,9 @@ where feeds.id = $1
 
 -- name: GetNextFeedToFetch :one 
 select 
-  feeds.id,
-  feeds.url
+  id,
+  name,
+  url
 from feeds 
-inner join feed_follows on feeds.id = feed_follows.feed_id 
-where feed_follows.user_id = $1
 order by last_fetched_at asc nulls first
 limit 1;
