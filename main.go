@@ -10,6 +10,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"strconv"
 	"time"
 
 	"github.com/beka652/rss_feed_aggregator/internal/config"
@@ -50,6 +51,7 @@ func main() {
 	registeredCmds.register("follow", middlewareLoggedIn(handlerFollow))
 	registeredCmds.register("following", middlewareLoggedIn(handlerFollowing))
 	registeredCmds.register("unfollow", middlewareLoggedIn(handlerUnfollow))
+	registeredCmds.register("browse", middlewareLoggedIn(handlerBrowse))
 
 	db, err := sql.Open("postgres", st.config.DbUrl)
 	if err != nil {
@@ -273,7 +275,50 @@ func handlerFollowing(s *state, cmd command, user database.User) error {
 	}
 	return nil 
 }
-
+func handlerBrowse(s *state, cmd command, user database.User ) error {
+	
+	if len(cmd.args) == 0 { // to be removed later
+		cmd.args = append(cmd.args, "invalid")
+	}
+	i64, err  := strconv.ParseInt(cmd.args[0], 10, 32)
+	if err != nil {
+		i64 = 2
+	}
+	limit := int32(i64)
+	posts, err := s.db.GetPostsForUser(
+		context.Background(),
+		database.GetPostsForUserParams{
+			UserID: user.ID,
+			Limit: limit,
+		},
+	)
+	if err != nil {
+		return err 
+	}	
+	err = printPosts(posts)
+	if err != nil {
+		return  err 
+	}
+	return nil 
+}
+func printPosts(posts []database.Post) error {
+	for i, post := range posts {
+		fmt.Println(" ---------------------------------------------------------------------------")
+		fmt.Println(" >> Feed number:", i + 1)
+		fmt.Println()
+		fmt.Printf(" * ID : %v\n", post.ID)
+		fmt.Printf(" * FeedID : %v\n", post.FeedID)
+		fmt.Printf(" * Url : %v\n", post.Url)
+		fmt.Printf(" * Title: %v\n", post.Title)
+		fmt.Printf(" * Description: %v\n", post.Description)
+		fmt.Printf(" * Published at: %v\n", post.PublishedAt)
+		fmt.Printf(" * Created at at: %v\n", post.CreatedAt)
+		fmt.Printf(" * Updated  at: %v\n", post.UpdatedAt)	
+		fmt.Println(" ---------------------------------------------------------------------------")
+		fmt.Println()
+	}
+	return nil 
+}
 func scrapeFeeds(s *state) error {
 	nextFeed, err  := s.db.GetNextFeedToFetch(context.Background())
 	if err != nil {
