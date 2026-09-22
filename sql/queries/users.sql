@@ -14,3 +14,17 @@ select * from users where name = $1 limit 1;
 delete from users;
 -- name: GetUsers :many
 select * from users;
+-- name: GetPostsForUser :many 
+select 
+  * 
+from 
+  posts 
+where feed_id in (
+  select 
+    feed_id
+  from 
+    feed_follows 
+  where user_id = $1
+  )
+order by published_at desc nulls last
+limit $2;
