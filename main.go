@@ -44,7 +44,7 @@ func main() {
 	registeredCmds.register("register", handlerRegister)
 	registeredCmds.register("reset", handlerReset)
 	registeredCmds.register("users", handlerUsers)
-	registeredCmds.register("agg", handlerAgg)
+	registeredCmds.register("agg", middlewareLoggedIn(handlerAgg))
 	registeredCmds.register("addfeed",middlewareLoggedIn(handlerAddFeed) )
 	registeredCmds.register("feeds", handlerFeeds)
 	registeredCmds.register("follow", middlewareLoggedIn(handlerFollow))
@@ -151,14 +151,18 @@ func handlerUsers(s *state, _ command) error {
 	return nil 
 }
 
-func handlerAgg(s *state, cmd command) error {
-	url := "https://www.wagslane.dev/index.xml"
-	rssFeed, err := fetchFeed(context.Background(), url)
-	if err != nil {
-		return err
+func handlerAgg(s *state, cmd command, user database.User) error {
+	dur  := time.Second * 10
+	fmt.Println("collecting feeds every", dur)
+
+	ticker := time.NewTicker(dur)
+	for ; ; <-ticker.C {
+		err := scrapeFeeds(s, user)
+		if err != nil {
+			return err 
+		}
+		fmt.Println("\n\n\n")
 	}
-	fmt.Println(*rssFeed)
-	return nil 
 }
 
 func handlerAddFeed(s *state, cmd command, user database.User) error {
@@ -266,6 +270,35 @@ func handlerFollowing(s *state, cmd command, user database.User) error {
 	fmt.Printf("* Feeds followed by %v:\n", s.config.CurrentUserName)
 	for i , feed := range userFeedFollows {
 		fmt.Printf("%v: %v\n", i +1, feed.FeedName)
+	}
+	return nil 
+}
+
+func scrapeFeeds(s *state, user database.User) error {
+	nextFeed, err  := s.db.GetNextFeedToFetch(context.Background(), user.ID)
+	if err != nil {
+		return err 
+	}
+	fmt.Printf("fetched %v\n", nextFeed.Url)
+	err = s.db.MarkFeedFetched(
+		context.Background(), 
+		database.MarkFeedFetchedParams{
+			ID: nextFeed.ID,
+			LastFetchedAt: sql.NullTime{ Time: time.Now(), Valid: true},
+			UpdatedAt: time.Now(),
+		})
+	if err != nil {
+		return err 
+	}
+	feed, err := fetchFeed(
+		context.Background(),
+		nextFeed.Url,
+	)
+	if err != nil {
+		return err 
+	}
+	for _, item := range feed.Channel.Item {
+			fmt.Println(item.Title)
 	}
 	return nil 
 }
