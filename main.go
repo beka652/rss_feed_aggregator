@@ -297,11 +297,7 @@ func scrapeFeeds(s *state) error {
 	if err != nil {
 		return err 
 	}
-	fmt.Println()
-	for _, item := range feed.Channel.Item {
-			fmt.Println(" --> ", item.Title)
-	}
-	fmt.Println()
+	savePosts(s, feed, nextFeed.ID)
 	return nil 
 }
 
@@ -371,6 +367,49 @@ func fetchFeed(ctx context.Context, feedUrl string) (*RSSFeed, error) {
 	}
 	sanitizeRSSFeed(&rssFeed)
 	return &rssFeed, nil 
+}
+
+func savePosts(s *state, rssFeed *RSSFeed, FeedId uuid.UUID) error {
+	for _,  item := range rssFeed.Channel.Item {
+		err := s.db.CreatePost(
+			context.Background(),
+			database.CreatePostParams{
+				ID: uuid.New(),
+				FeedID: FeedId,
+				Title: item.Title,
+				Url: item.Link,
+				Description: item.Description,
+				PublishedAt: ParseDateToNullTime(item.PubDate),
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			},
+		)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, err)
+		}
+	}
+	return nil 
+}
+
+func ParseDateToNullTime(dateStr string) sql.NullTime {
+	if dateStr == "" || dateStr== "null"{
+		return sql.NullTime{Valid: false}
+	}
+	layouts := []string{
+			time.RFC1123Z, // "Tue, 22 Sep 2026 06:08:39 +0000"
+			time.RFC1123,  // "Tue, 22 Sep 2026 06:08:39 UTC"
+			time.RFC3339,  // "2026-09-22T06:08:39Z"
+			"2006-01-02",  // Custom "YYYY-MM-DD" date-only format
+	}
+	for _, layout := range layouts {
+		if parsedTime, err := time.Parse(layout, dateStr); err != nil  {
+			return sql.NullTime{
+				Time: parsedTime,
+				Valid: true,
+			}
+		}
+	}
+	return sql.NullTime{Valid: false}
 }
 
 func sanitizeRSSFeed(feed *RSSFeed) {
